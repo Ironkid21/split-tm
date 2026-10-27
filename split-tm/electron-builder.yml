@@ -1,0 +1,45 @@
+appId: com.splittm.app
+productName: Split TM
+copyright: Copyright © Split TM
+directories:
+  output: release
+  buildResources: build
+files:
+  - dist/**/*
+  - package.json
+  - "!**/*.map"
+asar: true
+compression: normal
+artifactName: "Split-TM-${version}-${os}-${arch}.${ext}"
+electronFuses:
+  runAsNode: false
+  enableNodeOptionsEnvironmentVariable: false
+  enableNodeCliInspectArguments: false
+  enableCookieEncryption: true
+  onlyLoadAppFromAsar: true
+  enableEmbeddedAsarIntegrityValidation: true
+win:
+  target:
+    - { target: nsis, arch: [x64] }
+    - { target: zip, arch: [x64] }
+  requestedExecutionLevel: asInvoker
+nsis:
+  oneClick: false
+  perMachine: false
+  allowElevation: false
+  allowToChangeInstallationDirectory: true
+  deleteAppDataOnUninstall: false
+  runAfterFinish: true
+mac:
+  category: public.app-category.productivity
+  target:
+    - { target: dmg, arch: [x64, arm64] }
+    - { target: zip, arch: [x64, arm64] }
+  hardenedRuntime: true
+  gatekeeperAssess: false
+  entitlements: build/entitlements.mac.plist
+  entitlementsInherit: build/entitlements.mac.plist
+  notarize: true
+linux:
+  target: [dir]
+  category: Utility

@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<tmx version="1.4"><header srclang="en-GB" datatype="xml" creationtool="XTM">
+<prop type="user-defined">CUSTOMER: Cust_A</prop></header><body>
+<tu tuid="1" creationid="UserA" creationdate="20260812T172410Z" changedate="20260909T141014Z">
+<prop type="x-Project">P1</prop><prop type="JLR">Range_Rover</prop><prop type="JLR">Discovery</prop>
+<prop type="x-xtm-status">approved</prop><prop type="Status">translated</prop>
+<tuv xml:lang="en-GB"><seg>WATCH THE FILM</seg></tuv><tuv xml:lang="it-IT"><seg>GUARDA IL FILM</seg></tuv>
+<tuv xml:lang="de-DE"><seg>FILM ANSEHEN</seg></tuv></tu>
+<tu tuid="2" creationdate="20260101T000000Z"><prop type="x-Project">P2</prop><prop type="JLR">Jaguar</prop>
+<prop type="x-xtm-status">not approved</prop><prop type="Status">new</prop>
+<tuv xml:lang="en-GB"><seg>Hello <ph x="1">{1}</ph> world | pipe</seg></tuv><tuv xml:lang="it-IT"><seg>Ciao <ph x="1">{1}</ph></seg></tuv></tu>
+</body></tmx>

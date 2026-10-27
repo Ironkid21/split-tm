@@ -1,0 +1,52 @@
+{
+  "name": "split-tm",
+  "version": "1.5.2",
+  "private": true,
+  "description": "Split TM - filter, split and export TMX/ZIP translation memories",
+  "type": "module",
+  "scripts": {
+    "test": "vitest run",
+    "dev": "node scripts/dev.mjs",
+    "build": "vite build && node scripts/build-main.mjs",
+    "start": "electron .",
+    "typecheck": "tsc --noEmit -p tsconfig.json",
+    "pack": "npm run build && electron-builder --dir",
+    "dist:win": "npm run build && electron-builder --win",
+    "dist:mac": "npm run build && electron-builder --mac",
+    "dist:linux": "npm run build && electron-builder --linux",
+    "verify": "npm run typecheck && npm test",
+    "cli": "tsx scripts/dev-cli.ts",
+    "smoke": "npm run build && node scripts/smoke.mjs",
+    "build:dev": "vite build && node scripts/build-main.mjs --channel developer",
+    "pack:dev": "npm run build:dev && electron-builder --dir -c.directories.output=release-dev -c.mac.notarize=false -c.mac.identity=null",
+    "check:packaged": "node scripts/packaged-check.mjs"
+  },
+  "devDependencies": {
+    "@fontsource/overpass": "^5.3.0",
+    "@types/node": "^26.6.5",
+    "@types/react": "^19.3.0",
+    "@types/react-dom": "^19.3.0",
+    "@types/sax": "^1.2.7",
+    "@types/yauzl": "^3.4.0",
+    "@vitejs/plugin-react": "^6.1.2",
+    "concurrently": "^10.0.6",
+    "electron": "^44.7.0",
+    "electron-builder": "^26.15.3",
+    "esbuild": "^0.28.2",
+    "exceljs": "^4.4.0",
+    "fflate": "^0.8.3",
+    "react": "^19.3.0",
+    "react-dom": "^19.3.0",
+    "sax": "^1.6.1",
+    "saxes": "^6.0.0",
+    "tsx": "^4.23.15",
+    "typescript": "^7.0.2",
+    "vite": "^8.3.4",
+    "vitest": "^5.0.3",
+    "yauzl": "^3.4.0"
+  },
+  "main": "dist/main/main.cjs",
+  "author": {
+    "name": "Split TM Team"
+  }
+}
