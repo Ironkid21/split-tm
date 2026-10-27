@@ -1,0 +1,108 @@
+
+name: Build Split-TM for Windows
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: read
+
+jobs:
+  build-windows:
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout source
+        uses: actions/checkout@v4
+
+      - name: Locate project
+        shell: pwsh
+        run: |
+          if (Test-Path "package.json") {
+            "PROJECT_DIR=$env:GITHUB_WORKSPACE" |
+              Out-File -FilePath $env:GITHUB_ENV -Append
+          }
+          elseif (Test-Path "split-tm/package.json") {
+            "PROJECT_DIR=$env:GITHUB_WORKSPACE/split-tm" |
+              Out-File -FilePath $env:GITHUB_ENV -Append
+          }
+          else {
+            throw "Could not find package.json at repository root or in split-tm/"
+          }
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Install dependencies
+        shell: pwsh
+        run: |
+          Set-Location "$env:PROJECT_DIR"
+          npm install
+
+      - name: Run tests when available
+        shell: pwsh
+        run: |
+          Set-Location "$env:PROJECT_DIR"
+
+          $testFiles = @(
+            Get-ChildItem -Path "tests" -Recurse -File -ErrorAction SilentlyContinue |
+              Where-Object { $_.Name -like "*.test.ts" }
+          )
+
+          if ($testFiles.Count -gt 0) {
+            npm test
+            if ($LASTEXITCODE -ne 0) {
+              throw "Automated tests failed."
+            }
+          }
+          else {
+            Write-Host "No matching tests found. Skipping tests."
+          }
+
+      - name: Build and package Windows application
+        shell: pwsh
+        run: |
+          Set-Location "$env:PROJECT_DIR"
+          npm run dist:win
+
+          if ($LASTEXITCODE -ne 0) {
+            throw "Windows packaging failed."
+          }
+
+      - name: Verify packaged files
+        shell: pwsh
+        run: |
+          Set-Location "$env:PROJECT_DIR"
+
+          if (-not (Test-Path "release")) {
+            throw "The release folder was not created."
+          }
+
+          $files = @(
+            Get-ChildItem "release" -Recurse -File |
+              Where-Object {
+                $_.Extension -eq ".exe" -or
+                $_.Extension -eq ".zip"
+              }
+          )
+
+          if ($files.Count -eq 0) {
+            throw "No Windows installer or ZIP found in release."
+          }
+
+          $files | Select-Object FullName, Length
+
+      - name: Upload Windows application
+        uses: actions/upload-artifact@v4
+        with:
+          name: split-tm-windows
+          path: |
+            **/release/*.exe
+            **/release/*.zip
+          if-no-files-found: error
+          retention-days: 7
