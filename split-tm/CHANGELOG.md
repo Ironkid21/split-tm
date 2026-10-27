@@ -1,3 +1,10 @@
+## 1.5.3
+
+- Updated Multiple Market Output panel labels and descriptions to match the requested behaviour.
+- Individual Market Files exports one file per selected source-target pair; Single Combined File preserves combined multilingual output.
+- Collapsed the long target-market list by default, added a Choose markets / Hide markets control, and removed numeric counts from target-market entries.
+- Shows Multiple Market Output when more than one target market is selected.
+
 ## 1.5.2
 
 - Added a separate language-market output mode: combined multilingual output or individual bilingual files per source-target pair.

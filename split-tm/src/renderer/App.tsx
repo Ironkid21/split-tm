@@ -261,13 +261,13 @@ function ModePanel(p: { mode: OutputMode; setMode: (m: OutputMode) => void }) {
 
 function MarketModePanel(p: { mode: MarketOutputMode; setMode: (m: MarketOutputMode) => void }) {
   const opts: { id: MarketOutputMode; title: string; sub: string }[] = [
-    { id: 'combined', title: 'Multilingual File', sub: 'Combine all selected markets in one file' },
-    { id: 'individual', title: 'Individual Market File', sub: 'One bilingual file per source–target pair' },
+    { id: 'individual', title: 'Individual Market Files', sub: 'One output file per selected target market.' },
+    { id: 'combined', title: 'Single Combined File', sub: 'All selected markets in one combined file.' },
   ];
   return (
-    <section className="panel modebar" aria-label="Multiple language output">
-      <h2>Multiple File Output</h2>
-      <div className="mode-options" role="radiogroup" aria-label="Multiple language output mode">
+    <section className="panel modebar" aria-label="Multiple Market Output">
+      <h2>Multiple Market Output</h2>
+      <div className="mode-options" role="radiogroup" aria-label="Multiple Market Output mode">
         {opts.map((o) => (
           <button key={o.id} role="radio" aria-checked={p.mode === o.id} className={`mode ${p.mode === o.id ? 'on' : ''}`} onClick={() => p.setMode(o.id)}>
             <span className="dot" aria-hidden="true" /><span><b>{o.title}</b><small>{o.sub}</small></span>
@@ -283,25 +283,31 @@ function Stat({ label, value, note }: { label: string; value: string; note?: str
 
 function ChecklistPanel(p: { title: string; entries: [string, number][]; value: string[]; onChange: (v: string[]) => void; primary?: boolean; compact?: boolean; searchable?: boolean; hint?: string; label?: (k: string) => string; disabled?: boolean }) {
   const [q, setQ] = useState('');
+  const [listOpen, setListOpen] = useState(p.title !== 'Target language');
   const lbl = p.label ?? ((k: string) => k);
   const list = p.entries.filter(([k]) => `${k} ${lbl(k)}`.toLowerCase().includes(q.toLowerCase()));
   const showSearch = p.searchable || p.entries.length > 8;
+  const collapseLongMarketList = p.title === 'Target language';
   return (
     <section className={`panel check ${p.primary ? 'primary' : ''} ${p.compact ? 'compact' : ''} ${p.disabled ? 'disabled' : ''}`} aria-disabled={p.disabled}>
       <div className="head">
         <h2>{p.title} <span className="count">{p.value.length ? `${p.value.length} selected` : 'All'}</span></h2>
         <div className="mini-actions">
+          {collapseLongMarketList && <button className="link" aria-expanded={listOpen} onClick={() => setListOpen((v) => !v)}>{listOpen ? 'Hide markets' : 'Choose markets'}</button>}
           <button className="link" disabled={p.disabled} onClick={() => p.onChange(p.entries.map(([k]) => k))}>All</button>
           <button className="link" disabled={p.disabled} onClick={() => p.onChange([])}>Clear</button>
         </div>
       </div>
-      {showSearch && <input className="search" disabled={p.disabled} placeholder={`Search ${p.title.toLowerCase()}…`} value={q} onChange={(e) => setQ(e.target.value)} aria-label={`Search ${p.title}`} />}
-      {p.entries.length === 0 ? <p className="empty">Nothing found in the input.</p> : (
-        <ul className="list">{list.map(([k, n]) => (
-          <li key={k}><label><input type="checkbox" disabled={p.disabled} checked={p.value.includes(k)} onChange={() => p.onChange(toggle(p.value, k))} /><span className="lbl">{lbl(k)}</span><span className="n">{nf.format(n)}</span></label></li>))}
-          {list.length === 0 && <li className="empty">No match.</li>}
-        </ul>
-      )}
+      {listOpen && <>
+        {showSearch && <input className="search" disabled={p.disabled} placeholder={`Search ${p.title.toLowerCase()}…`} value={q} onChange={(e) => setQ(e.target.value)} aria-label={`Search ${p.title}`} />}
+        {p.entries.length === 0 ? <p className="empty">Nothing found in the input.</p> : (
+          <ul className="list">{list.map(([k, n]) => (
+            <li key={k}><label><input type="checkbox" disabled={p.disabled} checked={p.value.includes(k)} onChange={() => p.onChange(toggle(p.value, k))} /><span className="lbl">{lbl(k)}</span>{!collapseLongMarketList && <span className="n">{nf.format(n)}</span>}</label></li>))}
+            {list.length === 0 && <li className="empty">No match.</li>}
+          </ul>
+        )}
+      </>}
+      {collapseLongMarketList && !listOpen && <p className="hint">{p.value.length ? `${p.value.length} target markets selected.` : 'Market list hidden. Choose markets to select target languages.'}</p>}
       {p.hint && <p className="hint">{p.hint}</p>}
     </section>
   );
