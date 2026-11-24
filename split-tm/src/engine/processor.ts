@@ -139,7 +139,9 @@ export async function processRun(opts: {
         for (const v of list) if (v || key === 'approvalStatuses') values.add(v);
       }
       const selected = key === 'brands' ? filter.brands : key === 'projects' ? filter.projects : filter.approvalStatuses;
-      return [...(selected?.length ? selected : values)].sort();
+      // Preserve the user's explicit selection order for predictable output file ordering.
+      // When the dimension is unfiltered, keep a stable alphabetical order from the dataset.
+      return [...new Set(selected?.length ? selected : [...values].sort())];
     };
     const groups = (key: DimGroup['filterKey'], mode: 'single' | 'separate'): DimGroup[] => {
       const values = unique(key);
