@@ -1,5 +1,9 @@
 ## 2.0.0
 
+### Follow-up fix
+- Preserve TMX translation-unit order when asynchronous streaming callbacks complete at different speeds.
+- Add a regression test that verifies asynchronous callbacks cannot reorder exported records.
+
 - Split the Select step into a dedicated Filters page and an Output Configuration page; filter choices are retained when navigating Back.
 - Added independent Brand, Market, Approval Status and Project output controls, with simultaneous Excel, CSV, Markdown and TMX exports.
 - Added a complete output configuration to the run result and completion summary.
@@ -54,3 +58,8 @@
 
 ## 0.1.0
 - Core engine, filters, four output formats, desktop UI.
+
+
+## 2.0.0 follow-up fix
+- Preserved TMX translation-unit order during asynchronous streaming export to prevent rows from being reordered.
+- Added a regression test for delayed asynchronous unit callbacks.

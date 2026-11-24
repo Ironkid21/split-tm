@@ -7,12 +7,27 @@ import { Dataset } from '../src/engine/dataset';
 import { writeExcel } from '../src/engine/exporters';
 import { processRun } from '../src/engine/processor';
 import { defaultPaths } from '../src/engine/paths';
+import { parseTmx } from '../src/engine/tmxParser';
 
 const tu = (i: number) => `<tu tuid="${i}"><prop type="JLR">B${i % 2}</prop><tuv xml:lang="en-GB"><seg>Source ${i}</seg></tuv><tuv xml:lang="de-DE"><seg>Ziel ${i}</seg></tuv></tu>`;
 const tmx = (n: number) => `<?xml version="1.0"?><tmx version="1.4"><header srclang="en-GB"/><body>${Array.from({ length: n }, (_, i) => tu(i)).join('')}</body></tmx>`;
 const tmp = () => mkdtempSync(join(tmpdir(), 'st-'));
 
 describe('streaming export', () => {
+  it('preserves TMX document order when asynchronous unit callbacks have different durations', async () => {
+    const dir = tmp(); const f = join(dir, 'ordered.tmx');
+    writeFileSync(f, tmx(3));
+    const received: string[] = [];
+    await parseTmx(f, {
+      sourceFile: 'ordered.tmx',
+      onUnit: async (unit) => {
+        if (unit.tuid === '0') await new Promise((resolve) => setTimeout(resolve, 30));
+        received.push(unit.tuid);
+      },
+    });
+    expect(received).toEqual(['0', '1', '2']);
+  });
+
   it('keeps one Excel workbook and continues on a new sheet when the row limit is reached', async () => {
     const f = join(tmp(), 'o.xlsx');
     const rows = Array.from({ length: 8 }, (_, i) => [`s${i}`, `t${i}`]);
