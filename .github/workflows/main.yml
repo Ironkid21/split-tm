@@ -1,18 +1,29 @@
 
-name: Build Split-TM 1.5.3 for Windows
+name: Build Split TM 2.0 for Windows
 
 on:
   workflow_dispatch:
   push:
     branches:
       - main
+    tags:
+      - "v2.0.*"
+  pull_request:
+    branches:
+      - main
 
 permissions:
   contents: read
 
+concurrency:
+  group: split-tm-windows-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   build-windows:
+    name: Verify and package Windows app
     runs-on: windows-latest
+    timeout-minutes: 45
 
     steps:
       - name: Checkout source
@@ -21,9 +32,10 @@ jobs:
       - name: Set up Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 22
+          cache: npm
 
-      - name: Locate Split-TM project
+      - name: Locate Split TM project
         shell: pwsh
         run: |
           $root = $env:GITHUB_WORKSPACE
@@ -41,7 +53,7 @@ jobs:
               $config = Get-Content $file.FullName -Raw |
                 ConvertFrom-Json
 
-              if ($config.scripts.'dist:win') {
+              if ($config.scripts.'dist:win' -and $config.scripts.verify) {
                 $project = $file.Directory.FullName
                 break
               }
@@ -52,46 +64,31 @@ jobs:
           }
 
           if (-not $project) {
-            throw "Could not find package.json containing the dist:win script."
+            throw "Could not find the Split TM package.json with dist:win and verify scripts."
           }
 
-          Write-Host "Project directory: $project"
+          Write-Host "Split TM project directory: $project"
           "PROJECT_DIR=$project" |
             Out-File -FilePath $env:GITHUB_ENV -Append
 
-      - name: Install dependencies
+      - name: Install locked dependencies
         shell: pwsh
         run: |
           Set-Location "$env:PROJECT_DIR"
-          npm install
+          npm ci
 
           if ($LASTEXITCODE -ne 0) {
             throw "Dependency installation failed."
           }
 
-      - name: Run tests when available
+      - name: Run TypeScript checks and automated tests
         shell: pwsh
         run: |
           Set-Location "$env:PROJECT_DIR"
+          npm run verify
 
-          $testFiles = @(
-            Get-ChildItem -Path . -Recurse -File `
-              -ErrorAction SilentlyContinue |
-              Where-Object {
-                $_.FullName -notmatch '[\\/](node_modules|\.git)[\\/]' -and
-                $_.Name -match '\.(test|spec)\.(ts|tsx|js|jsx)$'
-              }
-          )
-
-          if ($testFiles.Count -gt 0) {
-            npm test
-
-            if ($LASTEXITCODE -ne 0) {
-              throw "Automated tests failed."
-            }
-          }
-          else {
-            Write-Host "No test files found. Skipping tests."
+          if ($LASTEXITCODE -ne 0) {
+            throw "Verification failed. Fix TypeScript errors or failing tests before packaging."
           }
 
       - name: Build and package Windows application
@@ -104,11 +101,10 @@ jobs:
             throw "Windows packaging failed."
           }
 
-      - name: Verify Windows output
+      - name: Verify Windows build output
         shell: pwsh
         run: |
           Set-Location "$env:PROJECT_DIR"
-
           $releaseDir = Join-Path "$env:PROJECT_DIR" "release"
 
           if (-not (Test-Path $releaseDir)) {
@@ -116,24 +112,25 @@ jobs:
           }
 
           $files = @(
-            Get-ChildItem $releaseDir -Recurse -File |
+            Get-ChildItem -Path $releaseDir -Recurse -File |
               Where-Object {
                 $_.Extension -in @(".exe", ".zip")
               }
           )
 
           if ($files.Count -eq 0) {
-            throw "No Windows installer or ZIP was found."
+            throw "No Windows installer (.exe) or portable archive (.zip) was found."
           }
 
-          $files | Select-Object FullName, Length
+          Write-Host "Windows build artifacts:"
+          $files | Select-Object FullName, Length | Format-Table -AutoSize
 
-      - name: Upload Windows application
+      - name: Upload Split TM 2.0 Windows artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: split-tm-1.5.3-windows
+          name: split-tm-2.0-windows
           path: |
             **/release/*.exe
             **/release/*.zip
           if-no-files-found: error
-          retention-days: 3
+          retention-days: 14
