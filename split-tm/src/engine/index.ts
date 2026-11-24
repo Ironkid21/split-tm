@@ -2,6 +2,7 @@ export * from './model.js';
 export { Dataset, filterUnits, matchesFilter, NO_BRAND } from './dataset.js';
 export { processRun, scanInputs, outputBaseName } from './processor.js';
 export type { OutputFormat, OutputMode, MarketOutputMode, OutputFileInfo, Progress, Stage, RunResult } from './processor.js';
+export type { OutputConfiguration } from './model.js';
 export { defaultPaths } from './paths.js';
 export type { AppPaths } from './paths.js';
 export { APP_VERSION } from './version.js';

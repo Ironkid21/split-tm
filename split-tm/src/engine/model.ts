@@ -57,3 +57,13 @@ export interface FilterCriteria {
   /** Explicit All-to-All: every source and target language in the input (same selection as leaving both lists empty). */
   allToAll?: boolean;
 }
+
+
+/** Independent output dimensions selected on the Select > Output page. */
+export interface OutputConfiguration {
+  brandMode: 'single' | 'separate';
+  marketMode: 'combined' | 'individual';
+  approvalMode: 'single' | 'separate';
+  projectMode: 'single' | 'separate';
+  formats: Array<'tmx' | 'xlsx' | 'csv' | 'md'>;
+}
