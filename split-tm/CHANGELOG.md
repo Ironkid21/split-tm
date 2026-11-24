@@ -1,3 +1,14 @@
+## 2.0.0
+
+- Split the Select step into a dedicated Filters page and an Output Configuration page; filter choices are retained when navigating Back.
+- Added independent Brand, Market, Approval Status and Project output controls, with simultaneous Excel, CSV, Markdown and TMX exports.
+- Added a complete output configuration to the run result and completion summary.
+- Preserved Unicode letters in generated filename tokens and made filename collision suffixes human-readable (`(2)`, `(3)`, …).
+- Corrected empty-source skip accounting for mixed TMX and tabular exports.
+- Added async streaming backpressure so large CSV, Markdown and TMX exports do not ignore writable-stream pressure.
+- Prevented an earlier file scan from overwriting the result of a newer file selection.
+- Updated application version to 2.0.0.
+
 ## 1.5.3
 
 - Updated Multiple Market Output panel labels and descriptions to match the requested behaviour.

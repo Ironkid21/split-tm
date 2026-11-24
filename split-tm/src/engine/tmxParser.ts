@@ -6,7 +6,7 @@ import { parseTmxDate } from './tmxDate.js';
 
 export interface ParseOptions {
   sourceFile: string;
-  onUnit: (tu: TranslationUnit) => void;
+  onUnit: (tu: TranslationUnit) => void | Promise<void>;
   onSkip?: (s: SkippedUnit) => void;
   brandPropType?: string;
 }
@@ -24,6 +24,8 @@ export async function parseTmxStream(input: Readable, opts: ParseOptions): Promi
   let tu: { tuid: string; attrs: Record<string, string>; creationDate: Date | null; modifiedDate: Date | null; tuvs: { lang: string; xml: string }[]; props: [string, string][] } | null = null;
 
   const parser = new SaxesParser();
+  // Parser events are synchronous; async consumers are drained after each bounded input chunk.
+  const pending: Promise<void>[] = [];
   parser.on('error', (e) => { throw new Error(`Invalid TMX (${opts.sourceFile}): ${e.message}`); });
   parser.on('opentag', (node) => {
     const a = node.attributes as Record<string, string>;
@@ -75,7 +77,7 @@ export async function parseTmxStream(input: Readable, opts: ParseOptions): Promi
           opts.onSkip?.({ tuid: t.tuid, sourceFile: opts.sourceFile, reason: header.srclang ? `Missing source-language entry (${header.srclang})` : 'TMX header has no source language (srclang)' });
           break;
         }
-        opts.onUnit({
+        const emitted = opts.onUnit({
           tuid: t.tuid, sourceFile: opts.sourceFile, customer: header.customer,
           projects: get('x-Project'), brands: [...new Set(get(brandType))],
           approvalStatus: get('x-xtm-status')[0] ?? '', translationStatus: get('Status')[0] ?? '',
@@ -84,6 +86,7 @@ export async function parseTmxStream(input: Readable, opts: ParseOptions): Promi
           targets: t.tuvs.filter((x) => x !== src).map((x) => ({ language: x.lang, text: x.xml })),
           originalXml: '', attrs: t.attrs, metadata,
         });
+        if (emitted && typeof (emitted as Promise<void>).then === 'function') pending.push(Promise.resolve(emitted));
       }
     }
   });
@@ -96,9 +99,14 @@ export async function parseTmxStream(input: Readable, opts: ParseOptions): Promi
       decoder = new TextDecoder(enc);
     }
     parser.write(decoder.decode(buf, { stream: true }));
+    if (pending.length) await Promise.all(pending.splice(0));
   }
-  if (decoder) parser.write(decoder.decode());
+  if (decoder) {
+    parser.write(decoder.decode());
+    if (pending.length) await Promise.all(pending.splice(0));
+  }
   parser.close();
+  if (pending.length) await Promise.all(pending.splice(0));
   return header;
 }
 

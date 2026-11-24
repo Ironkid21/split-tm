@@ -56,11 +56,15 @@ export function App() {
 
   const resetFilters = () => { setBrands([]); setProjects([]); setCustomers([]); setApprovals([]); setSources([]); setTargets([]); setAllToAll(false); setFrom(''); setTo(''); };
 
+  const scanRequest = useRef(0);
   const runScan = useCallback(async (list: string[]) => {
+    const request = ++scanRequest.current;
     resetFilters(); setError(null);
     if (!list.length) { setScan({ status: 'idle' }); return; }
     setScan({ status: 'scanning' });
     const r = await api.scan(list);
+    // Ignore stale results when the user changes the input list during a scan.
+    if (request !== scanRequest.current) return;
     setScan(r.ok ? { status: 'ready', data: r.data } : { status: 'error', error: r.error });
   }, []);
 
@@ -352,7 +356,10 @@ function Running({ progress }: { progress: Progress | null }) {
 function Done({ result, onOpen, onNew, onClose }: { result: RunResult; onOpen: () => void; onNew: () => void; onClose: () => void }) {
   const rows: [string, string][] = [
     ['Run ID', result.runId], ['Input files', String(result.inputFileCount)], ['Output format', (result.formats ?? [result.format]).map((id) => FORMATS.find((f) => f.id === id)?.label ?? id).join(', ')],
-    ['Output mode', result.outputMode === 'separate' ? 'Separate Files per Brand' : 'Single File'],
+    ['Brand output', result.outputConfig.brandMode === 'separate' ? 'Separate Files' : 'Single File'],
+    ['Market output', result.outputConfig.marketMode === 'individual' ? 'Individual Market Files' : 'Single Combined File'],
+    ['Approval status output', result.outputConfig.approvalMode === 'separate' ? 'Separate Files' : 'Single File'],
+    ['Project output', result.outputConfig.projectMode === 'separate' ? 'Separate Files' : 'Single File'],
     ['Records read', nf.format(result.recordsRead)],
     ['Records selected', nf.format(result.recordsSelected)], ['Records exported', nf.format(result.recordsExported)],
     ...(result.recordsSkipped ? ([['Records skipped', nf.format(result.recordsSkipped)]] as [string, string][]) : []),

@@ -78,13 +78,13 @@ export class Dataset {
   }
 
   /** Re-reads the inputs in the same order as the scan and calls back with each full unit and its index ordinal. */
-  async forEachUnit(cb: (u: TranslationUnit, ordinal: number) => void, onTick?: (n: number) => void) {
+  async forEachUnit(cb: (u: TranslationUnit, ordinal: number) => void | Promise<void>, onTick?: (n: number) => void) {
     let ord = 0;
-    const visit = (u: TranslationUnit) => {
+    const visit = async (u: TranslationUnit) => {
       const m = this.index[ord];
       if (!m || m.fp !== fnv(u.tuid) || m.srcLang !== u.source.language)
         throw new Error('The input files changed after they were scanned. Please add them again.');
-      cb(u, ord++);
+      await cb(u, ord++);
       if (onTick && ord % TICK === 0) onTick(ord);
     };
     for (const src of this.sources) {

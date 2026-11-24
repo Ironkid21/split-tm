@@ -1,5 +1,6 @@
 import ExcelJS from 'exceljs';
 import { createWriteStream, writeFileSync, type WriteStream } from 'node:fs';
+import { once } from 'node:events';
 import { TranslationUnit } from './model.js';
 import { APP_VERSION } from './version.js';
 import { csvField } from './csvSafe.js';
@@ -73,32 +74,38 @@ export const writeText = (path: string, s: string) => writeFileSync(path, s, 'ut
 
 // ---------- streaming sinks (used by real runs: nothing but the current unit is held in memory) ----------
 export interface Sink {
-  write(u: TranslationUnit): void;
-  writeRow(cells: string[]): void;
+  write(u: TranslationUnit): Promise<void>;
+  writeRow(cells: string[]): Promise<void>;
   close(): Promise<{ exported: number; emptySource: number }>;
 }
 
 class FileSink {
   protected ws: WriteStream; protected err: Error | null = null; exported = 0; emptySource = 0;
   constructor(file: string) { this.ws = createWriteStream(file, { encoding: 'utf8' }); this.ws.on('error', (e) => { this.err = e; }); }
-  protected put(s: string) { if (this.err) throw this.err; this.ws.write(s); }
+  protected async put(s: string): Promise<void> {
+    if (this.err) throw this.err;
+    if (!this.ws.write(s)) await once(this.ws, 'drain');
+    if (this.err) throw this.err;
+  }
   protected end(): Promise<void> {
     return new Promise((res, rej) => { if (this.err) return rej(this.err); this.ws.once('error', rej); this.ws.end(() => (this.err ? rej(this.err) : res())); });
   }
 }
 
 class TextSink extends FileSink implements Sink {
-  constructor(file: string, private columns: string[], private line: (c: string[]) => string, head: string) { super(file); this.put(head); }
-  write(u: TranslationUnit) { const r = rowOf(u, this.columns); if (r) this.writeRow(r); else this.emptySource++; }
-  writeRow(cells: string[]) { this.put(this.line(cells)); this.exported++; }
-  async close() { await this.end(); return { exported: this.exported, emptySource: this.emptySource }; }
+  private ready: Promise<void>;
+  constructor(file: string, private columns: string[], private line: (c: string[]) => string, head: string) { super(file); this.ready = this.put(head); }
+  async write(u: TranslationUnit) { await this.ready; const r = rowOf(u, this.columns); if (r) await this.writeRow(r); else this.emptySource++; }
+  async writeRow(cells: string[]) { await this.ready; await this.put(this.line(cells)); this.exported++; }
+  async close() { await this.ready; await this.end(); return { exported: this.exported, emptySource: this.emptySource }; }
 }
 
 class TmxSink extends FileSink implements Sink {
-  constructor(file: string, opts: TmxOptions) { super(file); this.put(tmxHeader(opts) + '\n'); }
-  write(u: TranslationUnit) { this.put(tmxUnit(u) + '\n'); this.exported++; }
-  writeRow(): void { throw new Error('TMX output takes units, not rows'); }
-  async close() { this.put(tmxFooter + '\n'); await this.end(); return { exported: this.exported, emptySource: 0 }; }
+  private ready: Promise<void>;
+  constructor(file: string, opts: TmxOptions) { super(file); this.ready = this.put(tmxHeader(opts) + '\n'); }
+  async write(u: TranslationUnit) { await this.ready; await this.put(tmxUnit(u) + '\n'); this.exported++; }
+  async writeRow(): Promise<void> { throw new Error('TMX output takes units, not rows'); }
+  async close() { await this.ready; await this.put(tmxFooter + '\n'); await this.end(); return { exported: this.exported, emptySource: 0 }; }
 }
 
 /** Excel allows 1,048,576 rows per sheet; the output stays ONE workbook and continues on "TM 2", "TM 3", … when needed. */
@@ -117,8 +124,8 @@ class XlsxSink implements Sink {
     const h = this.ws.addRow(this.header); h.font = { bold: true }; h.commit();
     this.rows = 0;
   }
-  write(u: TranslationUnit) { const r = rowOf(u, this.columns); if (r) this.writeRow(r); else this.emptySource++; }
-  writeRow(cells: string[]) {
+  async write(u: TranslationUnit) { const r = rowOf(u, this.columns); if (r) await this.writeRow(r); else this.emptySource++; }
+  async writeRow(cells: string[]) {
     if (this.rows >= this.rowsPerSheet) this.sheet();
     const r = this.ws.addRow(cells);
     r.eachCell((c) => { c.alignment = { wrapText: true, vertical: 'top' }; });
@@ -138,6 +145,6 @@ export function createSink(format: TabularFormat | 'tmx', file: string, o: { col
 /** In-memory table -> Excel file (same writer as real runs). */
 export async function writeExcel(t: Table, path: string, rowsPerSheet?: number) {
   const s = createSink('xlsx', path, { columns: t.header, rowsPerSheet });
-  t.rows.forEach((r) => s.writeRow(r));
+  for (const r of t.rows) await s.writeRow(r);
   await s.close();
 }

@@ -1,6 +1,6 @@
 {
   "name": "split-tm",
-  "version": "1.5.3",
+  "version": "2.0.0",
   "private": true,
   "description": "Split TM - filter, split and export TMX/ZIP translation memories",
   "type": "module",

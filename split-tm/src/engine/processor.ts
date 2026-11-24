@@ -33,6 +33,7 @@ export interface RunResult {
   languages: string[];
   format: OutputFormat; formats: OutputFormat[]; durationMs: number; outputDir: string; outputFiles: string[];
   outputMode: OutputMode;
+  outputConfig: OutputConfiguration;
   /** One entry per generated file (same Run ID / folder for all). */
   files: OutputFileInfo[];
 }
@@ -66,8 +67,9 @@ export function outputBaseName(f: FilterCriteria): string {
   return safeName(name);
 }
 
-function dimensionFileName(brand: string, approval: string, language: string, project: string) {
-  const token = (v: string) => safeName(v.normalize('NFKD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-zA-Z0-9]+/g, '_').replace(/^_+|_+$/g, '').toUpperCase(), 48) || 'UNKNOWN';
+export function dimensionFileName(brand: string, approval: string, language: string, project: string) {
+  // Preserve letters from every writing system instead of turning non-Latin names into UNKNOWN.
+  const token = (v: string) => safeName(v.normalize('NFKC').replace(/[^\p{L}\p{N}]+/gu, '_').replace(/^_+|_+$/g, '').toUpperCase(), 48) || 'UNKNOWN';
   return [token(brand), token(approval), token(language), token(project)].join('_');
 }
 
@@ -158,7 +160,7 @@ export async function processRun(opts: {
 
     interface Job { selection: Selection; file: string; sink: Sink; written: number; format: OutputFormat; brand?: string; approvalStatus?: string; project?: string; market: string }
     const jobs: Job[] = []; const usedNames = new Set<string>(); const emptyCombos: string[] = [];
-    const safeToken = (v: string) => safeName(v.normalize('NFKD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-zA-Z0-9]+/g, '_').replace(/^_+|_+$/g, '').toUpperCase(), 48) || 'UNKNOWN';
+    const safeToken = (v: string) => safeName(v.normalize('NFKC').replace(/[^\p{L}\p{N}]+/gu, '_').replace(/^_+|_+$/g, '').toUpperCase(), 48) || 'UNKNOWN';
     for (const bg of brandGroups) for (const ag of approvalGroups) for (const pg of projectGroups) for (const mg of marketGroups) {
       const jobFilter: FilterCriteria = { ...filter, brands: bg.values.length ? bg.values : filter.brands, approvalStatuses: filter.approvalStatuses?.length || config.approvalMode === 'separate' ? ag.values : filter.approvalStatuses, projects: filter.projects?.length || config.projectMode === 'separate' ? pg.values : filter.projects, ...(mg.source && mg.target ? { sourceLanguages: [mg.source], targetLanguages: [mg.target], allToAll: false } : {}) };
       const selection = planSelection(ds.index, jobFilter);
@@ -171,7 +173,7 @@ export async function processRun(opts: {
       const base = legacyCall ? safeName(`${outputBaseName(legacyBrandFilter)}${mg.source && mg.target ? `_${mg.source}_${mg.target}` : ''}`) : dimensionFileName(b, a, l, pr);
       for (const fmt of formats) {
         let name = base, n = 1;
-        while (usedNames.has(`${name}.${fmt}`.toLowerCase())) name = `${base}_${++n}`;
+        while (usedNames.has(`${name}.${fmt}`.toLowerCase())) name = `${base} (${++n})`;
         usedNames.add(`${name}.${fmt}`.toLowerCase());
         const file = join(outDir, `${name}.${fmt}`);
         const customers = new Set<string>();
@@ -184,12 +186,12 @@ export async function processRun(opts: {
     if (!jobs.length) throw new Error('No output files could be created for the selected dimension combinations.');
 
     const emptyOrdinals = new Set<number>(); let handled = 0;
-    await ds.forEachUnit((u, ord) => {
+    await ds.forEachUnit(async (u, ord) => {
       for (const j of jobs) {
         if (!j.selection.mask[ord]) continue;
         const t = trimUnit(u, j.selection.sets); if (!t) continue;
         if (j.format !== 'tmx' && !plain(u.source.text)) emptyOrdinals.add(ord);
-        j.sink.write(t); j.written++;
+        await j.sink.write(t); j.written++;
       }
       handled++;
     }, (n) => onProgress?.({ stage: 'Exporting', recordsScanned: read, recordsSelected: Math.min(handled, overall.count), currentFile: `${n}` }));
@@ -215,7 +217,7 @@ export async function processRun(opts: {
       'Output File Names': files.map((f) => f.name).join('; '), 'End Time': hms(end), 'Duration (s)': Math.round((end.getTime() - start.getTime()) / 100) / 10,
     }));
     onProgress?.({ stage: 'Done', recordsScanned: read, recordsSelected: overall.count });
-    return { runId, inputFileCount: inputs.length, recordsRead: read, recordsSelected: overall.count, recordsExported: exported, recordsSkipped: skipped, warnings: [...sk.warnings, ...ds.warnings], languages: overall.columns.map(outLang), format, formats, durationMs: end.getTime() - start.getTime(), outputDir: outDir, outputFiles: files.map((f) => f.path), outputMode: legacyCall && (filter.brands?.length ?? 0) <= 1 ? 'single' : config.brandMode, files };
+    return { runId, inputFileCount: inputs.length, recordsRead: read, recordsSelected: overall.count, recordsExported: exported, recordsSkipped: skipped, warnings: [...sk.warnings, ...ds.warnings], languages: overall.columns.map(outLang), format, formats, durationMs: end.getTime() - start.getTime(), outputDir: outDir, outputFiles: files.map((f) => f.path), outputMode: legacyCall && (filter.brands?.length ?? 0) <= 1 ? 'single' : config.brandMode, outputConfig: { ...config, formats }, files };
   } catch (e) {
     if (!finished && outDirCreated) {
       await Promise.all(openSinks.map((k) => k.close().catch(() => undefined)));
