@@ -1,4 +1,4 @@
-import type { SkippedUnit, FilterCriteria, ScanResult, OutputFormat, OutputMode, MarketOutputMode, Progress, RunResult, UpgradeReport } from '../engine/index';
+import type { SkippedUnit, FilterCriteria, ScanResult, OutputFormat, OutputMode, MarketOutputMode, Progress, RunResult, UpgradeReport, OutputConfiguration } from '../engine/index';
 
 export type Facets = {
   brands: Record<string, number>; projects: Record<string, number>; customers: Record<string, number>;
@@ -19,7 +19,7 @@ export interface SplitTmApi {
   scan(paths: string[]): Promise<Result<Scanned>>;
   count(filter: FilterCriteria): Promise<Result<number>>;
   preview(filter: FilterCriteria): Promise<Result<Preview>>;
-  process(filter: FilterCriteria, format: OutputFormat, mode: OutputMode, marketMode: MarketOutputMode): Promise<Result<RunResult>>;
+  process(filter: FilterCriteria, config: OutputConfiguration): Promise<Result<RunResult>>;
   closeApp(): Promise<Result<true>>;
   chooseOutputRoot(): Promise<Result<AppInfo | null>>;
   openPath(p: string): Promise<Result<true>>;

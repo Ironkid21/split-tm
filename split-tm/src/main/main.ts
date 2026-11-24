@@ -3,7 +3,7 @@ import { existsSync } from 'node:fs';
 import { join, extname } from 'node:path';
 import { Dataset, planSelection, processRun, scanInputs, defaultPaths, APP_VERSION, runStartupMigration, loadConfig, saveConfig } from '../engine/index';
 import type { UpgradeReport } from '../engine/index';
-import type { FilterCriteria, OutputFormat, OutputMode, MarketOutputMode } from '../engine/index';
+import type { FilterCriteria, OutputConfiguration } from '../engine/index';
 import type { Result, Scanned } from '../shared/api';
 import { runSmoke } from './smoke';
 import { DEBUG_SWITCHES, devToolsAllowed, isBlockedShortcut, productionMacMenu } from './security';
@@ -56,15 +56,14 @@ function register() {
     return { count: planSelection(session.ds.index, f).count, perBrand };
   }));
   ipcMain.handle('closeApp', () => wrap(() => { app.quit(); return true as const; }));
-  ipcMain.handle('process', (_e, filter: FilterCriteria, format: OutputFormat, mode: OutputMode = 'single', marketMode: MarketOutputMode = 'combined') => wrap(async () => {
+  ipcMain.handle('process', (_e, filter: FilterCriteria, config: OutputConfiguration) => wrap(async () => {
     if (!session) throw new Error('Add files and scan them first.');
     if (busy) throw new Error('A run is already in progress.');
-    if (!['tmx', 'xlsx', 'csv', 'md'].includes(format)) throw new Error('Unknown output format.');
-    if (!['single', 'separate'].includes(mode)) throw new Error('Unknown output mode.');
-    if (!['combined', 'individual'].includes(marketMode)) throw new Error('Unknown market output mode.');
+    if (!config || !Array.isArray(config.formats) || !config.formats.length || config.formats.some((f) => !['tmx', 'xlsx', 'csv', 'md'].includes(f))) throw new Error('Select at least one supported output format.');
+    if (!['single', 'separate'].includes(config.brandMode) || !['combined', 'individual'].includes(config.marketMode) || !['single', 'separate'].includes(config.approvalMode) || !['single', 'separate'].includes(config.projectMode)) throw new Error('Invalid output configuration.');
     busy = true;
     try {
-      return await processRun({ inputs: session.inputs, filter, format, paths: paths(), dataset: session.ds, outputMode: mode, marketOutputMode: marketMode, onProgress: (p) => win?.webContents.send('progress', p) });
+      return await processRun({ inputs: session.inputs, filter, outputConfig: config, paths: paths(), dataset: session.ds, onProgress: (p) => win?.webContents.send('progress', p) });
     } finally { busy = false; }
   }));
   ipcMain.handle('chooseOutputRoot', () => wrap(async () => {

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import type { FilterCriteria, OutputFormat, OutputMode, MarketOutputMode, Progress, RunResult, UpgradeReport } from '../engine/index';
+import type { FilterCriteria, OutputFormat, OutputMode, MarketOutputMode, OutputConfiguration, Progress, RunResult, UpgradeReport } from '../engine/index';
 import type { AppInfo, Preview, Scanned } from '../shared/api';
 import { NO_BRAND } from '../shared/constants';
 import { langLabel } from '../shared/lang';
@@ -35,10 +35,12 @@ export function App() {
   const [allToAll, setAllToAll] = useState(false);
   const [from, setFrom] = useState('');
   const [to, setTo] = useState('');
-  const [format, setFormat] = useState<OutputFormat>('xlsx');
+  const [formats, setFormats] = useState<OutputFormat[]>(['xlsx']);
   const [preview, setPreview] = useState<Preview | null>(null);
   const [outputMode, setOutputMode] = useState<OutputMode>('single');
   const [marketOutputMode, setMarketOutputMode] = useState<MarketOutputMode>('combined');
+  const [approvalOutputMode, setApprovalOutputMode] = useState<OutputMode>('single');
+  const [projectOutputMode, setProjectOutputMode] = useState<OutputMode>('single');
   const selected = preview?.count ?? null;
 
   useEffect(() => { void api.info().then((r) => r.ok && setInfo(r.data)); }, []);
@@ -88,7 +90,8 @@ export function App() {
 
   const run = async () => {
     setError(null); setProgress(null); setStep('running');
-    const r = await api.process(filter, format, brands.length > 1 ? outputMode : 'single', marketOutputMode);
+    const config: OutputConfiguration = { brandMode: outputMode, marketMode: marketOutputMode, approvalMode: approvalOutputMode, projectMode: projectOutputMode, formats };
+    const r = await api.process(filter, config);
     if (r.ok) { setResult(r.data); setStep('done'); } else { setError(r.error); setStep('select'); }
   };
   const newRun = () => { setFiles([]); setScan({ status: 'idle' }); resetFilters(); setResult(null); setError(null); setStep('intake'); };
@@ -117,9 +120,9 @@ export function App() {
       <main className="stage">
         {step === 'intake' && <Intake files={files} scan={scan} onPick={pick} onDrop={(fl) => addFiles(fl.map((f) => api.pathForFile(f)))} onRemove={removeFile} onNext={() => setStep('select')} />}
         {step === 'select' && ready && (
-          <Select data={ready} filter={filter} format={format} selected={selected} preview={preview} outputMode={outputMode} setOutputMode={setOutputMode} marketOutputMode={marketOutputMode} setMarketOutputMode={setMarketOutputMode} info={info}
+          <Select data={ready} filter={filter} formats={formats} selected={selected} preview={preview} outputMode={outputMode} setOutputMode={setOutputMode} marketOutputMode={marketOutputMode} setMarketOutputMode={setMarketOutputMode} approvalOutputMode={approvalOutputMode} setApprovalOutputMode={setApprovalOutputMode} projectOutputMode={projectOutputMode} setProjectOutputMode={setProjectOutputMode} info={info}
             state={{ brands, projects, customers, approvals, sources, targets, allToAll, from, to }}
-            set={{ setBrands, setProjects, setCustomers, setApprovals, setSources, setTargets, setAllToAll, setFrom, setTo, setFormat }}
+            set={{ setBrands, setProjects, setCustomers, setApprovals, setSources, setTargets, setAllToAll, setFrom, setTo, setFormats }}
             onBack={() => setStep('intake')} onRun={run} onChangeRoot={changeRoot} />
         )}
         {step === 'running' && <Running progress={progress} />}
@@ -165,15 +168,17 @@ function Intake(p: { files: string[]; scan: Scan; onPick: () => void; onDrop: (f
 }
 
 type SelState = { brands: string[]; projects: string[]; customers: string[]; approvals: string[]; sources: string[]; targets: string[]; allToAll: boolean; from: string; to: string };
-type SelSet = { setBrands: (v: string[]) => void; setProjects: (v: string[]) => void; setCustomers: (v: string[]) => void; setApprovals: (v: string[]) => void; setSources: (v: string[]) => void; setTargets: (v: string[]) => void; setAllToAll: (v: boolean) => void; setFrom: (v: string) => void; setTo: (v: string) => void; setFormat: (v: OutputFormat) => void };
+type SelSet = { setBrands: (v: string[]) => void; setProjects: (v: string[]) => void; setCustomers: (v: string[]) => void; setApprovals: (v: string[]) => void; setSources: (v: string[]) => void; setTargets: (v: string[]) => void; setAllToAll: (v: boolean) => void; setFrom: (v: string) => void; setTo: (v: string) => void; setFormats: (v: OutputFormat[]) => void };
 
-function Select(p: { data: Scanned; filter: FilterCriteria; format: OutputFormat; selected: number | null; preview: Preview | null; outputMode: OutputMode; setOutputMode: (m: OutputMode) => void; marketOutputMode: MarketOutputMode; setMarketOutputMode: (m: MarketOutputMode) => void; info: AppInfo | null; state: SelState; set: SelSet; onBack: () => void; onRun: () => void; onChangeRoot: () => void }) {
+function Select(p: { data: Scanned; filter: FilterCriteria; formats: OutputFormat[]; selected: number | null; preview: Preview | null; outputMode: OutputMode; setOutputMode: (m: OutputMode) => void; marketOutputMode: MarketOutputMode; setMarketOutputMode: (m: MarketOutputMode) => void; approvalOutputMode: OutputMode; setApprovalOutputMode: (m: OutputMode) => void; projectOutputMode: OutputMode; setProjectOutputMode: (m: OutputMode) => void; info: AppInfo | null; state: SelState; set: SelSet; onBack: () => void; onRun: () => void; onChangeRoot: () => void }) {
+  const [page, setPage] = useState<'filters' | 'output'>('filters');
   const { scan, facets } = p.data; const st = p.state; const set = p.set;
   const brandEntries: [string, number][] = [...Object.entries(facets.brands), ...(facets.noBrand ? [[NO_BRAND, facets.noBrand] as [string, number]] : [])];
   const none = p.selected === 0;
   const dMin = day(scan.minCreation), dMax = day(scan.maxCreation);
   return (
     <div className="select">
+      {page === 'filters' && <>
       <div className="stats">
         <Stat label="Translation units" value={nf.format(scan.unitCount)} />
         <Stat label="Unique brands" value={String(scan.brands.length)} />
@@ -219,36 +224,54 @@ function Select(p: { data: Scanned; filter: FilterCriteria; format: OutputFormat
           </section>
         </div>
       </div>
+      </>}
 
-      {(st.brands.length > 1 || st.allToAll || st.sources.length + st.targets.length > 2) && (
-        <div className={`output-panels ${st.brands.length > 1 && (st.allToAll || st.sources.length + st.targets.length > 2) ? 'two-panels' : ''}`}>
-          {st.brands.length > 1 && <ModePanel mode={p.outputMode} setMode={p.setOutputMode} />}
-          {(st.allToAll || st.sources.length + st.targets.length > 2) && <MarketModePanel mode={p.marketOutputMode} setMode={p.setMarketOutputMode} />}
+      {page === 'filters' ? (
+        <footer className="bar panel">
+          <button className="btn" onClick={p.onBack}>Back</button>
+          <div className="sel" aria-live="polite"><b>{p.selected === null ? '…' : nf.format(p.selected)}</b> of {nf.format(scan.unitCount)} units selected{none ? ' — adjust filters' : ''}</div>
+          <button className="btn primary" disabled={!p.selected} onClick={() => setPage('output')}>Next</button>
+        </footer>
+      ) : (
+        <div className="output-page">
+          <div className="output-grid">
+            <ModePanel mode={p.outputMode} setMode={p.setOutputMode} />
+            <MarketModePanel mode={p.marketOutputMode} setMode={p.setMarketOutputMode} />
+            <ModePanel title="Approval Status Output" mode={p.approvalOutputMode} setMode={p.setApprovalOutputMode} subject="approval status" />
+            <ModePanel title="Project Output" mode={p.projectOutputMode} setMode={p.setProjectOutputMode} subject="project" />
+          </div>
+          <section className="panel modebar format-panel">
+            <h2>Output Formats <span className="count">{p.formats.length} selected</span></h2>
+            <div className="format-options">
+              {FORMATS.map((f) => <label key={f.id} className="format-option"><input type="checkbox" checked={p.formats.includes(f.id)} onChange={() => set.setFormats(p.formats.includes(f.id) ? p.formats.filter((x) => x !== f.id) : [...p.formats, f.id])} /><span><b>{f.label}</b><small>{f.hint}</small></span></label>)}
+            </div>
+            {!p.formats.length && <p className="hint warn-text">Select at least one output format.</p>}
+          </section>
+          <section className="panel mini output-summary">
+            <h2>Selection Summary</h2>
+            <p><b>{p.selected === null ? '…' : nf.format(p.selected)}</b> of {nf.format(scan.unitCount)} translation units selected</p>
+            <p className="hint">{st.brands.length || 'All'} brands · {st.approvals.length || 'All'} approval statuses · {st.projects.length || 'All'} projects · {st.sources.length || 'All'} source languages · {st.targets.length || 'All'} target languages</p>
+            <div className="where output-where" title={p.info?.outputRoot}>Output: <b>{p.info ? base(p.info.outputRoot) : '…'}</b> <button className="link" onClick={p.onChangeRoot}>Change</button></div>
+          </section>
+          <footer className="bar panel">
+            <button className="btn" onClick={() => setPage('filters')}>Back</button>
+            <div className="spacer" />
+            <button className="btn primary" disabled={!p.selected || !p.formats.length} onClick={p.onRun}>Proceed</button>
+          </footer>
         </div>
       )}
-
-      <footer className="bar panel">
-        <button className="btn" onClick={p.onBack}>Back</button>
-        <div className="seg" role="radiogroup" aria-label="Output format">
-          {FORMATS.map((f) => (
-            <button key={f.id} role="radio" aria-checked={p.format === f.id} className={p.format === f.id ? 'on' : ''} onClick={() => set.setFormat(f.id)}>{f.label}<small>{f.hint}</small></button>))}
-        </div>
-        <div className="where" title={p.info?.outputRoot}>Output: <b>{p.info ? base(p.info.outputRoot) : '…'}</b> <button className="link" onClick={p.onChangeRoot}>Change</button></div>
-        <div className={`sel ${none ? 'warn' : ''}`} aria-live="polite"><b>{p.selected === null ? '…' : nf.format(p.selected)}</b> of {nf.format(scan.unitCount)} units selected{st.brands.length > 1 && p.outputMode === 'separate' ? ` · ${st.brands.filter((b) => (p.preview?.perBrand[b] ?? 1) > 0).length} files` : ''}{none ? ' — adjust filters' : ''}</div>
-        <button className="btn primary" disabled={!p.selected} onClick={p.onRun}>Process</button>
-      </footer>
     </div>
   );
 }
 
-function ModePanel(p: { mode: OutputMode; setMode: (m: OutputMode) => void }) {
+function ModePanel(p: { mode: OutputMode; setMode: (m: OutputMode) => void; title?: string; subject?: string }) {
   const opts: { id: OutputMode; title: string; sub: string }[] = [
-    { id: 'single', title: 'Single File', sub: 'Combine selected brands' },
-    { id: 'separate', title: 'Separate Files', sub: 'One output file per brand' },
+    { id: 'single', title: 'Single File', sub: `Combine selected ${p.subject ?? 'brands'}` },
+    { id: 'separate', title: 'Separate Files', sub: `One output file per ${p.subject ?? 'brand'}` },
   ];
   return (
     <section className="panel modebar" aria-label="Multiple Brand output">
-      <h2>Multiple Brand Output</h2>
+      <h2>{p.title ?? 'Brand Output'}</h2>
       <div className="mode-options" role="radiogroup" aria-label="Multiple Brand output mode">
         {opts.map((o) => (
           <button key={o.id} role="radio" aria-checked={p.mode === o.id} className={`mode ${p.mode === o.id ? 'on' : ''}`} onClick={() => p.setMode(o.id)}>
@@ -328,7 +351,7 @@ function Running({ progress }: { progress: Progress | null }) {
 
 function Done({ result, onOpen, onNew, onClose }: { result: RunResult; onOpen: () => void; onNew: () => void; onClose: () => void }) {
   const rows: [string, string][] = [
-    ['Run ID', result.runId], ['Input files', String(result.inputFileCount)], ['Output format', FORMATS.find((f) => f.id === result.format)?.label ?? result.format],
+    ['Run ID', result.runId], ['Input files', String(result.inputFileCount)], ['Output format', (result.formats ?? [result.format]).map((id) => FORMATS.find((f) => f.id === id)?.label ?? id).join(', ')],
     ['Output mode', result.outputMode === 'separate' ? 'Separate Files per Brand' : 'Single File'],
     ['Records read', nf.format(result.recordsRead)],
     ['Records selected', nf.format(result.recordsSelected)], ['Records exported', nf.format(result.recordsExported)],

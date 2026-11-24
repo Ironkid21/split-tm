@@ -196,3 +196,17 @@ input[type=checkbox]:disabled{cursor:not-allowed}
 
 @media (max-width:1180px){.stats{grid-template-columns:repeat(3,1fr)}.where{display:none}}
 @media (prefers-reduced-motion:reduce){*,*::before,*::after{animation:none!important;transition:none!important}}
+
+
+/* ---------- Select 2.0 output configuration page ---------- */
+.output-page{display:flex;flex-direction:column;gap:14px;min-height:0;overflow-y:auto;padding-right:4px}
+.output-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px}
+.output-grid .modebar{height:100%;align-content:start}
+.format-panel h2{margin-bottom:12px}
+.format-options{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px}
+.format-option{display:flex;align-items:center;gap:10px;border:1px solid var(--control);padding:12px;border-radius:var(--r);cursor:pointer;min-width:0}
+.format-option:hover{border-color:var(--ink);background:var(--surface-2)}
+.format-option input{accent-color:var(--accent);width:16px;height:16px;flex:none}
+.format-option b,.format-option small{display:block}.format-option b{font-size:12px;letter-spacing:.08em;text-transform:uppercase}.format-option small{font-size:11px;color:var(--mute)}
+.output-summary{display:flex;flex-direction:column;gap:5px}.output-summary p{margin:0}.output-summary p>b{font-size:22px;font-weight:300}.output-where{margin-left:0;max-width:none}.spacer{flex:1}.warn-text{color:var(--warn)}
+@media(max-width:900px){.output-grid{grid-template-columns:minmax(0,1fr)}.format-options{grid-template-columns:repeat(2,minmax(0,1fr))}}
